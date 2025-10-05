@@ -1,2 +1,3 @@
 # taxiVSUberetcComparison
 New York Taxi Vs Other private vehicle Crash comparison
+I Vibe coded a comparison between NYC Taxi and other private vehicles to see which was safer. I used chatgpt over several hours. I uploaded the Makefile as well as the last python script I had used as of Sunday Oct 5, 2025. Apparently NYC doesn't break out the data as Taxi vs Uber etc. so I had chatgpt estimate it from the data. I did not upload the data files which can be downloaded using the using the Makefile. The files labeled crashes has to be downloaded from NYC manually as the make file does not work for it. I did not do a regression yet nor have done any other statitical analysis which I might do in the future.
