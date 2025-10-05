@@ -30,6 +30,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+import numpy as np
+from scipy.stats import ttest_ind, mannwhitneyu
 
 # ---------------------------- Config ----------------------------
 DATA_DIR = Path("data")
@@ -246,6 +248,78 @@ def make_pdf_report():
     c.showPage()
     c.save()
     print(f"[pdf] Saved -> {pdf_path}")
+def _cohens_d(x, y):
+    nx, ny = len(x), len(y)
+    if nx < 2 or ny < 2:
+        return np.nan
+    dof = nx + ny - 2
+    pooled_std = np.sqrt(((nx - 1) * np.var(x, ddof=1) + (ny - 1) * np.var(y, ddof=1)) / max(dof, 1))
+    if pooled_std == 0:
+        return np.nan
+    return (np.mean(x) - np.mean(y)) / pooled_std
+
+def _sig_report_line(name, t_stat, p_t, u_stat, p_u, d):
+    size = (
+        "negligible" if (np.isnan(d) or abs(d) < 0.2) else
+        "small"      if abs(d) < 0.5 else
+        "medium"     if abs(d) < 0.8 else
+        "large"
+    )
+    sig_t = "YES" if (p_t < 0.05) else "no"
+    sig_u = "YES" if (p_u < 0.05) else "no"
+    return (
+        f"[{name}] Welch t={t_stat:.4f}, p={p_t:.6f} (sig@5%: {sig_t}); "
+        f"Mann-Whitney U={u_stat:.4f}, p={p_u:.6f} (sig@5%: {sig_u}); "
+        f"Cohen d={d:.4f} ({size})"
+    )
+
+def run_significance_tests(df, out_dir: Path):
+    """
+    Runs Welch's t-test, Mann–Whitney U, and Cohen's d comparing Yellow vs HVFHV.
+    Uses 'estimated' crash rates if present (from proportional allocation),
+    otherwise uses observed rates.
+    Saves a short text report to out/significance_tests.txt and prints a summary.
+    """
+    report_path = out_dir / "significance_tests.txt"
+    lines = []
+    lines.append("NYC TLC Yellow vs HVFHV — Significance Tests (2022–2023)\n")
+    lines.append("Methods: Welch's t-test, Mann–Whitney U (two-sided), Cohen's d\n")
+
+    # Prefer estimated columns if the allocation fallback created them (non-flat results)
+    trip_cols = ("taxi_crash_rate_per_million_trips", "hvfhv_crash_rate_per_million_trips")
+    mile_cols = ("taxi_crash_rate_per_million_miles", "hvfhv_crash_rate_per_million_miles")
+
+    # Extract and clean
+    def get_clean_pair(cy, ch):
+        z = df[[cy, ch]].replace([np.inf, -np.inf], np.nan).dropna()
+        return z[cy].to_numpy(), z[ch].to_numpy()
+
+    # TRIPS
+    y_trips, h_trips = get_clean_pair(*trip_cols)
+    if len(y_trips) >= 2 and len(h_trips) >= 2 and (np.any(y_trips) or np.any(h_trips)):
+        t_stat, p_t = ttest_ind(y_trips, h_trips, equal_var=False)
+        u_stat, p_u = mannwhitneyu(y_trips, h_trips, alternative="two-sided")
+        d = _cohens_d(y_trips, h_trips)
+        lines.append(_sig_report_line("Per-million TRIPS", t_stat, p_t, u_stat, p_u, d))
+    else:
+        lines.append("[Per-million TRIPS] Not enough nonzero data to test.")
+
+    # MILES
+    y_miles, h_miles = get_clean_pair(*mile_cols)
+    if len(y_miles) >= 2 and len(h_miles) >= 2 and (np.any(y_miles) or np.any(h_miles)):
+        t_stat, p_t = ttest_ind(y_miles, h_miles, equal_var=False)
+        u_stat, p_u = mannwhitneyu(y_miles, h_miles, alternative="two-sided")
+        d = _cohens_d(y_miles, h_miles)
+        lines.append(_sig_report_line("Per-million MILES", t_stat, p_t, u_stat, p_u, d))
+    else:
+        lines.append("[Per-million MILES] Not enough nonzero data to test.")
+
+    text = "\n".join(lines) + "\n"
+    with open(report_path, "w") as f:
+        f.write(text)
+
+    print("\n" + text.strip())
+    print(f"[sig ] Saved significance report -> {report_path}")
 
 # ---------------------------- Main ----------------------------
 def main():
@@ -373,9 +447,12 @@ def main():
         "avg_miles_bar.png",
         "Crashes / million miles",
     )
-
-    # PDF
+    # PDF report
     make_pdf_report()
+
+    # Significance tests (Welch's t-test, Mann–Whitney U, Cohen's d)
+    run_significance_tests(df, OUT_DIR)
+
     print("[done] Analysis complete.")
 
 if __name__ == "__main__":

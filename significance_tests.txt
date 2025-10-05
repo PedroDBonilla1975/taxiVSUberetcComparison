@@ -1,0 +1,6 @@
+NYC TLC Yellow vs HVFHV — Significance Tests (2022–2023)
+
+Methods: Welch's t-test, Mann–Whitney U (two-sided), Cohen's d
+
+[Per-million TRIPS] Welch t=0.1406, p=0.889189 (sig@5%: no); Mann-Whitney U=268.0000, p=0.687623 (sig@5%: no); Cohen d=0.0406 (negligible)
+[Per-million MILES] Welch t=0.0151, p=0.987997 (sig@5%: no); Mann-Whitney U=291.0000, p=0.958888 (sig@5%: no); Cohen d=0.0044 (negligible)
